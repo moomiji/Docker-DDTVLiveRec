@@ -2,96 +2,87 @@ name: Build And Push DDTV Docker images
 author: moomiji
 description: 'Build And Push DDTV Docker images with build-push-action'
 inputs:
-  repo:
-    description: 'Name of docker image library.'
-    required: true
-  image_id:
-    description: 'Id of image.'
-    required: true
-  version:
-    description: 'Version of DDTV.'
-    required: true
-  path:
-    description: "Path of DDTV build output."
-    required: false
-  runtime:
-    description: "Dotnet runtime identifier"
-    required: true
-  build-args:
-    description: "List of build-time variables"
-    required: true
   push:
     description: "Push is a shorthand for --output=type=registry"
     required: false
     default: 'true'
 
+  repo:
+    description: 'Name of docker image library.'
+    required: true
+  os_id:
+    description: 'Id of os.'
+    required: true
+  version:
+    description: 'Version of DDTV.'
+    required: true
+
+  build-args:
+    description: "List of build-time variables"
+    required: true
+  path:
+    description: "Path of DDTV build output."
+    required: true
+  runtime:
+    description: "Dotnet runtime identifier" # linux-x64 ..
+    required: true
+
 runs:
   using: "composite"
   steps:
+    - if: github.repository_id == '207967312'
+      uses: docker/login-action@v3
+      with:
+        username: ${{ env.DOCKERHUB_USERNAME }}
+        password: ${{ env.DOCKERHUB_PASSWORD }}
+
     - uses: docker/login-action@v3
       with:
         registry: ghcr.io
         username: ${{ github.repository_owner }}
         password: ${{ github.token }}
 
+    - uses: docker/setup-buildx-action@v3
+
     - name: Set GITHUB_ENV
       shell: bash
       run: |
         owner_lower=${GITHUB_REPOSITORY_OWNER,,}
-        # ^([a-zA-Z]*)(((?:\d*)(?:\.\d*)?)(?:[a-zA-Z\._\d\-+]*))$
+        # 匹配如下：[release5.0.200a release 5.0.200a 5.0 5 .0 .200a] (release)(((5)))(.0)(.200a)啊
+
         if [[ "${{ inputs.version }}" =~ ^([a-zA-Z]*)((([0-9]*)(\.[0-9]*)?)([a-zA-Z0-9\._+-]*)).*$ ]]; then
-            echo "::notice title=DDTV Docker::version(${BASH_REMATCH[*]})"
+            [[ "${{ inputs.runtime }}" == "linux-x64" ]] && echo "::notice title=DDTV Docker::version(${BASH_REMATCH[*]})"
         else
             echo "::error title=DDTV Docker::${{ inputs.version }} is not a valid version."
+            exit 1
         fi
-
-        echo "tags<<EOF" >> $GITHUB_ENV
-          if ${{ startsWith(inputs.version, 'dev') }}; then
-            echo "dev" >> $GITHUB_ENV
-          else
-            echo "release"     >> $GITHUB_ENV
-          fi
-            echo "${BASH_REMATCH[2]}"         >> $GITHUB_ENV
-            echo "${BASH_REMATCH[3]}"         >> $GITHUB_ENV
-        echo "EOF" >> $GITHUB_ENV
-
-        echo "flavor<<EOF" >> $GITHUB_ENV
-          if ${{ inputs.image_id == 'debian' && !startsWith(inputs.version, 'dev') }}; then
-            echo "latest=true"      >> $GITHUB_ENV
-          else
-            echo "latest=false"     >> $GITHUB_ENV
-          fi
-        case ${{ matrix.runtime }} in
-          linux*x64)    suffix=-${{ inputs.image_id }}-amd64;   platforms=linux/amd64;  ;;
-          linux*arm64)  suffix=-${{ inputs.image_id }}-arm64v8; platforms=linux/arm64;  ;;
-          linux*arm)    suffix=-${{ inputs.image_id }}-arm32v7; platforms=linux/arm/v7; ;;
+        case "${{ inputs.runtime }}" in
+          linux*x64)    suffix=-amd64;   platforms=linux/amd64;  ;;
+          linux*arm64)  suffix=-arm64v8; platforms=linux/arm64;  ;;
+          linux*arm)    suffix=-arm32v7; platforms=linux/arm/v7; ;;
         esac
-        echo "suffix=$suffix"       >> $GITHUB_ENV
-        echo "EOF">> $GITHUB_ENV
-        echo "platforms=$platforms" >> $GITHUB_ENV
+        
+        echo "platforms=$platforms"         >> $GITHUB_ENV
+        echo   "tags<<EOF"                  >> $GITHUB_ENV
+                echo "${BASH_REMATCH[2]}${{ inputs.os_id == 'debian' && '' || format('-{0}', inputs.os_id) }}"    >> $GITHUB_ENV
+                echo "${BASH_REMATCH[3]}${{ inputs.os_id == 'debian' && '' || format('-{0}', inputs.os_id) }}"    >> $GITHUB_ENV
+                echo "${{ inputs.os_id }}"  >> $GITHUB_ENV
+                echo "EOF"                  >> $GITHUB_ENV
+        echo "flavor<<EOF"                  >> $GITHUB_ENV
+                echo "latest=${{ inputs.os_id == 'debian' }}" >> $GITHUB_ENV
+                echo "suffix=$suffix,onlatest=true"           >> $GITHUB_ENV
+                echo "EOF"                  >> $GITHUB_ENV
+        echo "images<<EOF"                  >> $GITHUB_ENV
+            if ${{ github.repository_id == '207967312' && !startsWith(inputs.version, 'dev') }}; then
+                echo "${{ inputs.repo }}"   >> $GITHUB_ENV
+            fi
+                echo "ghcr.io/$owner_lower/${{ inputs.repo }}" >> $GITHUB_ENV
+                echo "EOF"                  >> $GITHUB_ENV
+        echo "REGISTRY_IMAGE=ghcr.io/$owner_lower/${{ inputs.repo }}" >> $GITHUB_ENV
+        echo "IMAGE_TAG=${BASH_REMATCH[2]}${{ inputs.os_id == 'debian' && '' || format('-{0}', inputs.os_id) }}"  >> $GITHUB_ENV
 
-        echo "images<<EOF" >> $GITHUB_ENV
-          if ${{ github.repository_id == '207967312' && !startsWith(inputs.version, 'dev') }}; then
-            echo "${{ inputs.repo }}"                     >> $GITHUB_ENV
-          fi
-          echo "ghcr.io/$owner_lower/${{ inputs.repo }}"  >> $GITHUB_ENV
-        echo "EOF" >> $GITHUB_ENV
-
-    - name: Prepare
-      shell: bash
-      run: |
-        shopt -s globstar nullglob
-        cd ${{ github.action_path }}
-        $(chmod -v +x ./**/*.sh | awk '/prepare.GitHubActions.sh/{print $2}' FS="'") \
-            "${{ inputs.repo }}" \
-            "${{ github.token }}" \
-            "${{ inputs.path }}"
-
-    - uses: docker/setup-qemu-action@v3
-    - uses: docker/setup-buildx-action@v3
-
-    - name: Metadata for images
-      id: metadata
+    - name: Metadata for image
+      id: meta
       uses: docker/metadata-action@v5
       with:
         images: |
@@ -101,13 +92,72 @@ runs:
         tags:   |
           ${{ env.tags }}
 
-    - name: Build and push
+    - if: inputs.runtime != ''
+      name: Prepare
+      shell: bash
+      run: |
+        shopt -s globstar nullglob
+        cd ${{ github.action_path }}
+        chmod -v +x ./**/*.sh
+        cd ./**/"${{ inputs.repo }}"
+
+        KeyFile=Core.dll
+        File_Path=$(find "${{ inputs.path }}" -name "$KeyFile" | awk '{print $1}' FS="/$KeyFile")
+        mv -v "$File_Path"            ./root/DDTV
+        mv -v ../docker-entrypoint.sh ./root
+        mv -v ../*-*.sh               ./root/docker-entrypoint.d
+
+    - if: inputs.runtime != ''
+      uses: docker/setup-qemu-action@v3
+
+    - if: inputs.runtime != ''
+      id: build
+      name: Build and push by digest
       uses: docker/build-push-action@v5
       with:
         context: ${{ github.action_path }}/${{ inputs.repo }}/
         file:    ${{ github.action_path }}/${{ inputs.repo }}/Dockerfile
+        tags:    ${{ steps.meta.outputs.tags }}
         push:    ${{ inputs.push }}
-        tags:    ${{ steps.metadata.outputs.tags }}
-        labels:  ${{ steps.metadata.outputs.labels }}
+        labels:  ${{ steps.meta.outputs.labels }}
         platforms:  ${{ env.platforms }}
         build-args: ${{ inputs.build-args }}
+
+    - if: inputs.runtime != '' && inputs.push == 'true'
+      name: Export digest
+      shell: bash
+      run: |
+        mkdir -p /tmp/digests
+        digest="${{ steps.build.outputs.digest }}"
+        touch "/tmp/digests/${digest#sha256:}"
+
+    - if: inputs.runtime != '' && inputs.push == 'true'
+      name: Upload digest
+      uses: actions/upload-artifact@v4
+      with:
+        name: digests-${{ inputs.os_id }}-${{ inputs.runtime }}
+        path: /tmp/digests/*
+        if-no-files-found: error
+        retention-days: 1
+
+    - if: inputs.runtime == '' && inputs.push == 'true'
+      name: Download digests
+      uses: actions/download-artifact@v4
+      with:
+        path: /tmp/digests/${{ inputs.os_id }}
+        pattern: digests-${{ inputs.os_id }}-*
+        merge-multiple: true
+
+    - if: inputs.runtime == '' && inputs.push == 'true'
+      name: Create manifest list and push
+      working-directory: /tmp/digests/${{ inputs.os_id }}
+      shell: bash
+      run: |
+        docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+          $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
+
+    - if: inputs.runtime == '' && inputs.push == 'true'
+      name: Inspect image
+      shell: bash
+      run: |
+        docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}:${{ env.IMAGE_TAG }}

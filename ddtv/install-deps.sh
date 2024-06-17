@@ -1,5 +1,4 @@
 #!/bin/sh
-# CLI 安装相关依赖
 set -e; set -u
 
 . /etc/os-release
@@ -7,7 +6,7 @@ set -e; set -u
 case $ID in
     alpine)
         apk add --no-cache bash ffmpeg su-exec
-        sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g'  /etc/apk/repositories
+      # sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g'  /etc/apk/repositories
         ;;
 
     debian)
@@ -19,7 +18,7 @@ case $ID in
     ubuntu)
         apt update
         apt install --no-install-recommends bash ffmpeg gosu -y
-        sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g'      /etc/apt/sources.list
+      # sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g'      /etc/apt/sources.list
         ;;
 
     *)

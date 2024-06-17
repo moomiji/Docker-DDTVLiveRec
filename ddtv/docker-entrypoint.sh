@@ -45,7 +45,7 @@ esac
 if [ ! -e "/NotIsFirstStart" ]; then
     touch /NotIsFirstStart
     echo "初次启动容器！"
-    chmod +x ./CLI
+    chmod +x ./Server
 else
     echo "非初次启动容器！"
 fi
@@ -63,10 +63,10 @@ chown -R "$PUID:$PGID" /DDTV "$DownloadPath" "$TmpPath"
 
 case $ID in
     alpine)
-        su-exec "$PUID:$PGID" ./CLI
+        su-exec "$PUID:$PGID" ./Server
         ;;
     debian|ubuntu)
-        gosu "$PUID:$PGID" ./CLI
+        gosu "$PUID:$PGID" ./Server
         ;;
     *)
         echo "Error OS ID: $ID!" && exit 1
