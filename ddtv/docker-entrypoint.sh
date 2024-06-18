@@ -9,6 +9,7 @@ ARGs="$*"
 say_verbose() { if [[ "$ARGs" == *"--verbose"* ]]; then printf "\n%b\n" "$0: $1"; fi }
 
 cd /DDTV
+chmod +x ./Server ./Update/Update
 
 case "$ARGs" in
     ""|*"--verbose"*|*"--no-update"*)
@@ -28,14 +29,17 @@ case "$ARGs" in
             esac
         done
         # 更新 DDTV
-#        if [[ "$ARGs" != *"--no-update"* ]]; then
-#            if [[ -n "$(awk '/IsDev=True/' IGNORECASE=1 DDTV_Config.ini)" ]] ||
-#               [[ ! -e "/NotIsFirstStart" ]] && echo "$IsDev" | grep -qi "True"; then
-#                dotnet DDTV_Update.dll docker dev || echo "更新失败，请稍候重试！"
-#            else
-#                dotnet DDTV_Update.dll docker || echo "更新失败，请稍候重试！"
-#            fi
-#        fi
+        if [[ "$ARGs" != *"--no-update"* ]]; then
+            if [[ -n "$(awk '/DevelopmentVersion=true/' IGNORECASE=1 Config/DDTV_Config.ini)" ]] ||
+               [[ ! -e "/NotIsFirstStart" ]] && echo "$DevelopmentVersion" | grep -qi "true"; then
+                if [[ ! -e "/NotIsFirstStart" ]] && echo "$DevelopmentVersion" | grep -qi "true"; then
+                    echo "DevelopmentVersion=true" >> Config/DDTV_Config.ini
+                fi
+                ./Update/Update dev || echo "更新失败，请稍候重试！"
+            else
+                ./Update/Update || echo "更新失败，请稍候重试！"
+            fi
+        fi
         ;;
         # 运行测试用命令
     *)  echo "提示：运行参数可能输入错误" && echo "eval $ARGs" && eval "$ARGs" && exit $?
@@ -45,7 +49,6 @@ esac
 if [ ! -e "/NotIsFirstStart" ]; then
     touch /NotIsFirstStart
     echo "初次启动容器！"
-    chmod +x ./Server
 else
     echo "非初次启动容器！"
 fi
@@ -54,12 +57,9 @@ fi
 # 可用参数有:
 #   $PUID
 #   $PGID
-#   $DownloadPath
-#   $TmpPath
 . /etc/os-release
 echo "使用 UID ${PUID:=$UID} 和 GID ${PGID:=$PUID} 运行 ${DDTV_Docker_Project:-DDTV}"
-mkdir -p "${DownloadPath:=./Rec/}" "${TmpPath:=./tmp/}"
-chown -R "$PUID:$PGID" /DDTV "$DownloadPath" "$TmpPath"
+chown -R "$PUID:$PGID" /DDTV
 
 case $ID in
     alpine)
