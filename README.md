@@ -23,5 +23,5 @@ docker logs -f DDTV_Server # 跟踪日志
 
 ```shell
 docker ps -a
-docker cp [DDTV CONTAINER ID]:/DDTV/* .
+docker cp DDTV_Server:/DDTV/bin/ ./DDTV_bin/
 ```

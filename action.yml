@@ -103,7 +103,7 @@ runs:
 
         KeyFile=Core.dll
         File_Path=$(find "${{ inputs.path }}" -name "$KeyFile" | awk '{print $1}' FS="/$KeyFile")
-        mv -v "$File_Path"            ./root/DDTV
+        mv -v "$File_Path"            ./root/DDTV/bin
         mv -v ../docker-entrypoint.sh ./root
         mv -v ../*-*.sh               ./root/docker-entrypoint.d
 
