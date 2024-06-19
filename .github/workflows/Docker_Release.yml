@@ -59,7 +59,7 @@ jobs:
           path:       ${{ steps.build.outputs.path }}
           version:    ${{ steps.build.outputs.version }}
           runtime:    ${{ matrix.runtime }}
-          os_id:   ${{ contains(matrix.runtime, 'musl') && 'alpine' || 'debian' }}
+          os_id:      ${{ contains(matrix.runtime, 'musl') && 'alpine' || 'debian' }}
           build-args: REPO=mcr.microsoft.com/dotnet/runtime-deps:${{ contains(matrix.runtime, 'musl') && '8.0-alpine' || '8.0' }}
     outputs:
       version: ${{ steps.build.outputs.version }}
@@ -75,15 +75,9 @@ jobs:
           repo:       ddtv/server
           os_id:      alpine
           version:    ${{ needs.release.outputs.version }}
-          path:       ''
-          runtime:    ''
-          build-args: ''
       - uses: moomiji/docker-ddtv@action
         with:
           push:       true
           repo:       ddtv/server
           os_id:      debian
           version:    ${{ needs.release.outputs.version }}
-          path:       ''
-          runtime:    ''
-          build-args: ''

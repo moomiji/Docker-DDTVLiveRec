@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e; set -u
+shopt -s nocasematch
 
 # 参数更新需修改 README.md docker-compose.yml
 # 可用参数有:
@@ -7,6 +8,7 @@ set -e; set -u
 #   --verbose   脚本输出更多信息（若服务器多人使用docker，请谨慎使用该参数，因为会将DDTV中的个人信息\配置输出到docker日志中）
 ARGs="$*"
 say_verbose() { if [[ "$ARGs" == *"--verbose"* ]]; then printf "\n%b\n" "$0: $1"; fi }
+Path_Config=Config/DDTV_Config.ini
 
 cd /DDTV
 chmod +x ./Server ./Update/Update
@@ -30,11 +32,8 @@ case "$ARGs" in
         done
         # 更新 DDTV
         if [[ "$ARGs" != *"--no-update"* ]]; then
-            if [[ -n "$(awk '/DevelopmentVersion=true/' IGNORECASE=1 Config/DDTV_Config.ini)" ]] ||
-               [[ ! -e "/NotIsFirstStart" ]] && echo "$DevelopmentVersion" | grep -qi "true"; then
-                if [[ ! -e "/NotIsFirstStart" ]] && echo "$DevelopmentVersion" | grep -qi "true"; then
-                    echo "DevelopmentVersion=true" >> Config/DDTV_Config.ini
-                fi
+            if [[ -n "$(awk '/DevelopmentVersion=true/' IGNORECASE=1 $Path_Config)"
+               || ! -e "/NotIsFirstStart" && "${DevelopmentVersion:-}" == "true" ]]; then
                 ./Update/Update dev || echo "更新失败，请稍候重试！"
             else
                 ./Update/Update || echo "更新失败，请稍候重试！"
@@ -46,9 +45,10 @@ case "$ARGs" in
         ;;
 esac
 
-if [ ! -e "/NotIsFirstStart" ]; then
+if [ ! -e "/NotIsFirstStart" ]; then # 必须是根目录，换容器时变量可能变
     touch /NotIsFirstStart
     echo "初次启动容器！"
+    echo -e "IP=${IP:-http://0.0.0.0}${DevelopmentVersion:+\nDevelopmentVersion=$DevelopmentVersion}" >> $Path_Config
 else
     echo "非初次启动容器！"
 fi
