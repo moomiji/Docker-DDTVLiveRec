@@ -5,5 +5,5 @@ ENV DDTV_Docker_Project=DDTV_Server \
     TZ=Asia/Shanghai
 COPY root/ /
 RUN cd /docker-entrypoint.d && ./install-deps.sh
-WORKDIR /DDTV/bin
+WORKDIR /DDTV
 ENTRYPOINT ["/docker-entrypoint.sh"]

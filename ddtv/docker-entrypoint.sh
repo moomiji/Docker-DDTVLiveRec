@@ -8,7 +8,7 @@ set -e; set -u
 ARGs="$*"
 say_verbose() { if [[ "$ARGs" == *"--verbose"* ]]; then printf "\n%b\n" "$0: $1"; fi }
 
-cd /DDTV/bin
+cd /DDTV
 chmod +x ./Server ./Update/Update
 
 case "$ARGs" in
