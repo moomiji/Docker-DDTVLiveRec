@@ -17,8 +17,8 @@ inputs:
     description: 'Version of DDTV.'
     required: true
 
-  build-args:
-    description: "List of build-time variables"
+  dotnet-image-version:
+    description: "Version of dotnet image."
     required: true
   path:
     description: "Path of DDTV build output."
@@ -69,17 +69,53 @@ runs:
                 echo "${{ inputs.os_id }}"  >> $GITHUB_ENV
                 echo "EOF"                  >> $GITHUB_ENV
         echo "flavor<<EOF"                  >> $GITHUB_ENV
-                echo "latest=${{ inputs.os_id == 'debian' }}" >> $GITHUB_ENV
-                echo "suffix=$suffix,onlatest=true"           >> $GITHUB_ENV
+                echo "latest=${{ inputs.os_id == 'debian' }}"         >> $GITHUB_ENV
+                echo "suffix=$suffix,onlatest=true"                   >> $GITHUB_ENV
                 echo "EOF"                  >> $GITHUB_ENV
         echo "images<<EOF"                  >> $GITHUB_ENV
             if ${{ github.repository_id == '207967312' && !startsWith(inputs.version, 'dev') }}; then
                 echo "${{ inputs.repo }}"   >> $GITHUB_ENV
             fi
-                echo "ghcr.io/$owner_lower/${{ inputs.repo }}" >> $GITHUB_ENV
+                echo "ghcr.io/$owner_lower/${{ inputs.repo }}"        >> $GITHUB_ENV
                 echo "EOF"                  >> $GITHUB_ENV
         echo "REGISTRY_IMAGE=ghcr.io/$owner_lower/${{ inputs.repo }}" >> $GITHUB_ENV
         echo "IMAGE_TAG=${BASH_REMATCH[2]}${{ inputs.os_id == 'debian' && '' || format('-{0}', inputs.os_id) }}"  >> $GITHUB_ENV
+        
+        ddtv_deps_image_tag=ghcr.io/$owner_lower/ddtv/deps:${{ inputs.os_id }}$suffix
+        echo "ddtv_deps_image=ghcr.io/$owner_lower/ddtv/deps"         >> $GITHUB_ENV
+        echo "ddtv_deps_image_tag=$ddtv_deps_image_tag"               >> $GITHUB_ENV
+        docker pull $ddtv_deps_image_tag || true
+
+        ddtv_date="$(docker inspect $ddtv_deps_image_tag | jq '. + [{"Created":"1970-01-01T08:00:00"}]' || true)"
+        echo $ddtv_date
+        ddtv_date="$(echo "$ddtv_date" | jq -r '.[0] | .Created')"
+        echo 2
+        ddtv_date=$(date -d "$ddtv_date" +%s)
+        echo 3
+        mcr__date="$(curl https://mcr.microsoft.com/api/v1/catalog/dotnet/runtime-deps/tags | jq -r '.[] | select(.name == "8.0" ) | .lastModifiedDate')"
+        echo 4
+        mcr__date=$(date -d "$mcr__date" +%s)
+        echo 5
+        file_date=$(cat ${{ github.action_path }}/ddtv/deps/lastModifiedDate)
+        echo 6
+        file_date=$(date -d "$file_date" +%s)
+        echo "ddtv_date: $ddtv_date; mcr__date: $mcr__date; file_date: $file_date"
+        if [[ "$ddtv_date" -lt "$mcr__date" || "$ddtv_date" -lt "$file_date" ]]; then
+          echo "need_build_deps=true"       >> $GITHUB_ENV
+        fi 
+
+    - if: inputs.runtime != '' && env.need_build_deps == 'true'
+      name: Metadata for deps
+      id: deps
+      uses: docker/metadata-action@v5
+      with:
+        images: |
+          ${{ env.ddtv_deps_image }}
+        flavor: |
+          ${{ env.flavor }}
+        tags:   |
+          ${{ github.run_id }}-${{ inputs.os_id }}
+          ${{ inputs.os_id }}
 
     - name: Metadata for image
       id: meta
@@ -105,10 +141,21 @@ runs:
         File_Path=$(find "${{ inputs.path }}" -name "$KeyFile" | awk '{print $1}' FS="/$KeyFile")
         mv -v "$File_Path"            ./root/DDTV
         mv -v ../docker-entrypoint.sh ./root
-        mv -v ../*-*.sh               ./root/docker-entrypoint.d
+        # mv -v ../*-*.sh               ./root/docker-entrypoint.d
 
     - if: inputs.runtime != ''
       uses: docker/setup-qemu-action@v3
+
+    - if: inputs.runtime != '' && env.need_build_deps == 'true'
+      name: Build and push by digest
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ github.action_path }}/ddtv/deps/
+        file:    ${{ github.action_path }}/ddtv/deps/Dockerfile
+        tags:    ${{ steps.deps.outputs.tags }}
+        push:    true
+        platforms:  ${{ env.platforms }}
+        build-args: REPO=mcr.microsoft.com/dotnet/runtime-deps:${{ inputs.dotnet-image-version }}
 
     - if: inputs.runtime != ''
       id: build
@@ -121,7 +168,7 @@ runs:
         push:    ${{ inputs.push }}
         labels:  ${{ steps.meta.outputs.labels }}
         platforms:  ${{ env.platforms }}
-        build-args: ${{ inputs.build-args }}
+        build-args: REPO=${{ env.ddtv_deps_image_tag }}
 
     - if: inputs.runtime != '' && inputs.push == 'true'
       name: Export digest
