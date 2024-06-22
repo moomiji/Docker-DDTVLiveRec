@@ -2,7 +2,6 @@
 set -e; set -u
 shopt -s nocasematch
 
-# 参数更新需修改 README.md docker-compose.yml
 # 可用参数有:
 #   --no-update 不更新 DDTV
 #   --verbose   脚本输出更多信息（若服务器多人使用docker，请谨慎使用该参数，因为会将DDTV中的个人信息\配置输出到docker日志中）
@@ -12,6 +11,7 @@ Path_Config=Config/DDTV_Config.ini
 
 cd /DDTV
 chmod +x ./Server ./Update/Update
+DDTV_ARGs="./Server"
 
 case "$ARGs" in
     ""|*"--verbose"*|*"--no-update"*)
@@ -31,7 +31,9 @@ case "$ARGs" in
             esac
         done
         # 更新 DDTV
-        if [[ "$ARGs" != *"--no-update"* ]]; then
+        if [[ "$ARGs" == *"--no-update"* ]]; then
+            DDTV_ARGs="$DDTV_ARGs --no-update"
+        else
             if [[ -n "$(awk '/DevelopmentVersion=true/' IGNORECASE=1 $Path_Config)"
                || ! -e "/NotIsFirstStart" && "${DevelopmentVersion:-}" == "true" ]]; then
                 ./Update/Update dev || echo "更新失败，请稍候重试！"
@@ -63,10 +65,10 @@ chown -R "$PUID:$PGID" /DDTV
 
 case $ID in
     alpine)
-        su-exec "$PUID:$PGID" ./Server
+        su-exec "$PUID:$PGID" $DDTV_ARGs
         ;;
     debian|ubuntu)
-        gosu "$PUID:$PGID" ./Server
+        gosu "$PUID:$PGID" $DDTV_ARGs
         ;;
     *)
         echo "Error OS ID: $ID!" && exit 1

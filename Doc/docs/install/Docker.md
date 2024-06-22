@@ -21,6 +21,15 @@ Docker 镜像在 [Docker Hub](https://hub.docker.com/u/ddtv) 和 [GitHub Contain
 | debian | ✅ | ✅ | ✅ | `latest` `debian` `5.*` `5.*.*` |
 | alpine | ✅ | ✅ | ✅ | `alpine` `5.*-alpine` `5.*.*-alpine` |
 
+:::tip alpine 镜像食用提示
+alpine 容器请使用 `--no-update` 参数
+
+alpine 镜像未安装tzdata，如有需要请挂载时区信息文件，一般如下：
+```
+-v /usr/share/zoneinfo:/usr/share/zoneinfo
+```
+:::
+
 ## 最佳实践
 
 ## docker cli 运行容器
@@ -49,13 +58,6 @@ sudo docker rm -f DDTV_Server
 | TZ | `州/城市` | `Asia/Shanghai` | 时区 | `server` |
 | PUID | `num` | `0` | 运行 DDTV 的用户 ID | `server` |
 | PGID | `num` | `0` | 运行 DDTV 的用户组 ID | `server` |
-
-:::tip alpine 镜像设置时区
-alpine 镜像未安装tzdata，如有需要请挂载时区信息文件，一般如下：
-```
--v /usr/share/zoneinfo:/usr/share/zoneinfo
-```
-:::
 
 #### server 可用配置文件变量
 
