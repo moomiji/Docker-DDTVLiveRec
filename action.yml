@@ -92,7 +92,7 @@ runs:
         echo 2
         ddtv_date=$(date -d "$ddtv_date" +%s)
         echo 3
-        mcr__date="$(curl https://mcr.microsoft.com/api/v1/catalog/dotnet/runtime-deps/tags | jq -r '.[] | select(.name == "8.0" ) | .lastModifiedDate')"
+        mcr__date="$(curl https://mcr.microsoft.com/api/v1/catalog/dotnet/runtime-deps/tags?reg=mar | jq -r '.[] | select(.name == "8.0" ) | .lastModifiedDate')"
         echo 4
         mcr__date=$(date -d "$mcr__date" +%s)
         echo 5
